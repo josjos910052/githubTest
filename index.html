@@ -102,7 +102,7 @@
           resetDefault: '恢復官方預設值', replayTour: '開啟新手導覽',
           confirmClearTitle: '清除所有快取設定', confirmClearMsg: '這將會清除您設定的「碎片單價」、「產出速率」以及所有參數，確定要繼續嗎？',
           storageWarnTitle: '⚠️ 儲存功能受限通知', storageWarnDesc: '偵測到無痕模式或隱私設定封鎖。您的設定將不會被保存！',
-          sandboxShareWarn: '您目前處於沙盒預覽環境，產生的網址可能無法在外部使用。建議直接複製 JSON 代碼。', jsonError: 'JSON 格式有誤'
+          sandboxShareWarn: '目前環境 (如本機檔案) 可能無法產生有效的分享網址，建議直接複製 JSON 代碼。', jsonError: 'JSON 格式有誤'
         },
         tour: {
           skip: '關閉導覽', next: '下一步', prev: '上一步', finish: '開始使用',
@@ -132,7 +132,7 @@
           setWarn: 'Ensure Main % + (Add. % * 2) = 100.', copyUrl: 'Copy Link', copyJson: 'Copy JSON', jsonTip: 'Or paste JSON to import:', resetDefault: 'Restore Defaults', replayTour: 'Welcome Tour',
           confirmClearTitle: 'Clear Settings', confirmClearMsg: 'This will erase all custom settings. Continue?',
           storageWarnTitle: '⚠️ Storage Limited', storageWarnDesc: 'Settings will not be saved in this browser mode.',
-          sandboxShareWarn: 'Sandbox environment detected. URL sharing may fail.', jsonError: 'JSON parsing error.'
+          sandboxShareWarn: 'Unable to generate a valid share link for local files. Please copy JSON instead.', jsonError: 'JSON parsing error.'
         },
         tour: {
           skip: 'Close', next: 'Next', prev: 'Prev', finish: 'Start',
@@ -736,13 +736,31 @@
       const handleJsonChange = (e) => { setJsonText(e.target.value); try { setLocalConfig(JSON.parse(e.target.value)); } catch (e) {} };
       const handleSave = () => { try { setConfig(parseConfigSafe(JSON.parse(jsonText))); onClose(); } catch (e) { setJsonError(true); setTimeout(() => setJsonError(false), 3000); } };
       const handleResetDefault = () => { setLocalConfig(JSON.parse(JSON.stringify(DEFAULT_CONFIG))); setJsonText(JSON.stringify(DEFAULT_CONFIG, null, 2)); };
+      
       const copyToClipboard = (text, type) => {
         const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
         try { document.execCommand('copy'); setCopyStatus(type); setTimeout(() => setCopyStatus(''), 2000); } catch (err) {}
         document.body.removeChild(textArea);
       };
+      
       const handleShareLink = () => {
-        setShareWarn(true); setTimeout(() => setShareWarn(false), 5000);
+        try {
+          const base64Str = btoa(encodeURIComponent(JSON.stringify(localConfig)));
+          // 取得當前的真實網址 (例如 GitHub Pages 的網址)
+          let baseUrl = window.location.href.split('?')[0].split('#')[0];
+          
+          // 如果偵測到是在本地電腦用雙擊開啟的 (file://)，或是 Blob URL
+          if (baseUrl.startsWith('file://') || baseUrl.startsWith('blob:') || baseUrl.startsWith('data:')) {
+            setShareWarn(true);
+            setTimeout(() => setShareWarn(false), 5000);
+            return; // 不繼續產生分享連結，因為這個連結分享給別人也打不開
+          }
+          
+          // 若在正常網頁環境中，就產生加上參數的分享連結
+          copyToClipboard(`${baseUrl}?config=${base64Str}`, 'link');
+        } catch (e) {
+          console.error("Share link error:", e);
+        }
       };
 
       const tabs = [{ id: 'prob', label: t('modals.tabProb') }, { id: 'mainStat', label: t('modals.tabMain') }, { id: 'addStat', label: t('modals.tabAdd') }, { id: 'json', label: t('modals.tabJson') }];
